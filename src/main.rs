@@ -1,4 +1,4 @@
-use std::{collections::HashMap, env, fmt::Display, ops::AddAssign, str::FromStr};
+use std::{collections::BTreeMap, env, fmt::Display, ops::AddAssign, str::FromStr};
 
 use anyhow::Result;
 use serde::Deserialize;
@@ -27,6 +27,7 @@ impl Display for USD {
         write!(f, "${dollars:.2}")
     }
 }
+
 #[derive(Debug, Deserialize)]
 pub struct Record {
     #[serde(rename = "Order ID")]
@@ -44,15 +45,18 @@ pub struct Product {
 }
 
 fn main() -> Result<()> {
-    let mut products: HashMap<String, Product> = HashMap::new();
+    let mut products: BTreeMap<String, Product> = BTreeMap::new();
     let mut units = 0;
     let mut revenue = USD(0);
-    let mut rdr = csv::Reader::from_path(env::args().nth(1).unwrap()).unwrap();
-    for result in rdr.deserialize() {
-        let record: Record = result?;
-        let prod = products.entry(record.line_item_name).or_default();
-        prod.units += 1;
-        prod.revenue += record.line_item_price;
+    let paths: Vec<_> = env::args().skip(1).collect();
+    for path in paths {
+        let mut rdr = csv::Reader::from_path(path).unwrap();
+        for result in rdr.deserialize() {
+            let record: Record = result?;
+            let prod = products.entry(record.line_item_name).or_default();
+            prod.units += 1;
+            prod.revenue += record.line_item_price;
+        }
     }
     for (name, prod) in products {
         println!("{name:+20} {} {}", prod.units, prod.revenue);
