@@ -1,69 +1,22 @@
-use std::{collections::BTreeMap, env, fmt::Display, ops::AddAssign, str::FromStr};
+use clap::Parser;
 
-use anyhow::Result;
-use serde::Deserialize;
-use serde_with::DeserializeFromStr;
+use std::path::PathBuf;
 
-#[derive(Debug, Default, DeserializeFromStr)]
-pub struct USD(i32);
+use sales::Report;
 
-impl FromStr for USD {
-    type Err = anyhow::Error;
-
-    fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
-        Ok(Self(s.replace('.', "").parse()?))
-    }
+#[derive(Parser)]
+/// Summarises sales data from a CSV file.
+struct Args {
+    #[arg(short, long)]
+    /// Groups related line items using this config file.
+    groups: Option<PathBuf>,
+    /// Path(s) to the CSV sales data file(s).
+    paths: Vec<PathBuf>,
 }
 
-impl AddAssign for USD {
-    fn add_assign(&mut self, rhs: Self) {
-        self.0 += rhs.0;
-    }
-}
-
-impl Display for USD {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let dollars = f64::from(self.0) / 100.0;
-        write!(f, "${dollars:.2}")
-    }
-}
-
-#[derive(Debug, Deserialize)]
-pub struct Record {
-    #[serde(rename = "Order ID")]
-    pub order_id: String,
-    #[serde(rename = "Lineitem name")]
-    pub line_item_name: String,
-    #[serde(rename = "Lineitem price")]
-    pub line_item_price: USD,
-}
-
-#[derive(Debug, Default)]
-pub struct Product {
-    pub units: usize,
-    pub revenue: USD,
-}
-
-fn main() -> Result<()> {
-    let mut products: BTreeMap<String, Product> = BTreeMap::new();
-    let mut units = 0;
-    let mut revenue = USD(0);
-    let paths: Vec<_> = env::args().skip(1).collect();
-    for path in paths {
-        let mut rdr = csv::Reader::from_path(path).unwrap();
-        for result in rdr.deserialize() {
-            let record: Record = result?;
-            let prod = products.entry(record.line_item_name).or_default();
-            prod.units += 1;
-            prod.revenue += record.line_item_price;
-        }
-    }
-    for (name, prod) in products {
-        println!("{name:+20} {} {}", prod.units, prod.revenue);
-        units += prod.units;
-        revenue += prod.revenue;
-    }
-    println!("Total revenue {revenue}");
-    println!("Total units {units}");
+fn main() -> anyhow::Result<()> {
+    let args = Args::parse();
+    let report = Report::from_csv(&args.paths, args.groups)?;
+    print!("{report}");
     Ok(())
 }
