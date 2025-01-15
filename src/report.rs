@@ -40,7 +40,7 @@ impl Report {
                     .unwrap_or(record.line_item_name);
                 let prod = products.entry(display_name).or_default();
                 prod.units += 1;
-                total_units += prod.units;
+                total_units += 1;
                 prod.revenue += record.line_item_price;
                 total_revenue += record.line_item_price;
             }
