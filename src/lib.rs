@@ -6,10 +6,10 @@ use serde_with::DeserializeFromStr;
 
 use std::{
     collections::BTreeMap,
-    fmt::Display,
+    fmt::{Debug, Display},
     fs::File,
     io::{BufRead, BufReader},
-    ops::AddAssign,
+    ops::{AddAssign, Mul},
     path::Path,
     str::FromStr,
 };
@@ -33,7 +33,7 @@ struct Group {
 pub struct Report {
     groups: Vec<Group>,
     products: BTreeMap<String, Product>,
-    units: usize,
+    units: i32,
     revenue: USD,
 }
 
@@ -134,20 +134,20 @@ impl Report {
     /// # Errors
     ///
     /// Returns any errors from opening or parsing a CSV file.
-    pub fn read_csv(&mut self, paths: &[impl AsRef<Path>]) -> Result<()> {
-        for path in paths {
-            let mut rdr = csv::Reader::from_path(path)?;
-            for result in rdr.deserialize() {
-                let record: Record = result?;
-                let display_name = self
-                    .product_group(&record.line_item_name)
-                    .unwrap_or(record.line_item_name);
-                let prod = self.products.entry(display_name).or_default();
-                prod.units += 1;
-                self.units += 1;
-                prod.revenue += record.line_item_price;
-                self.revenue += record.line_item_price;
-            }
+    pub fn read_csv(&mut self, path: impl AsRef<Path>) -> Result<()> {
+        let mut rdr = csv::Reader::from_path(path)?;
+        for result in rdr.deserialize() {
+            let record: Record = result?;
+            let display_name = self
+                .product_group(&record.line_item_name)
+                .unwrap_or(record.line_item_name);
+            let prod = self.products.entry(display_name.clone()).or_default();
+            let units = record.line_item_qty;
+            prod.units += units;
+            self.units += units;
+            let revenue = record.line_item_price * record.line_item_qty;
+            prod.revenue += revenue;
+            self.revenue += revenue;
         }
         Ok(())
     }
@@ -173,18 +173,18 @@ impl Display for Report {
 /// Holds sales data on a specific product.
 #[derive(Debug, Default)]
 pub struct Product {
-    pub units: usize,
+    pub units: i32,
     pub revenue: USD,
 }
 
 /// Defines the CSV format for sales data.
 #[derive(Debug, Deserialize)]
 pub struct Record {
-    #[serde(rename = "Order ID")]
-    pub order_id: String,
-    #[serde(rename = "Lineitem name")]
+    #[serde(rename = "Lineitem quantity", alias = "Quantity")]
+    pub line_item_qty: i32,
+    #[serde(rename = "Lineitem name", alias = "Item Name")]
     pub line_item_name: String,
-    #[serde(rename = "Lineitem price")]
+    #[serde(rename = "Lineitem price", alias = "Item Price ($)")]
     pub line_item_price: USD,
 }
 
@@ -193,14 +193,27 @@ pub struct Record {
 /// The amount is stored internally as an integer number of cents, but the
 /// [`Display`] implementation formats it for display as dollars to 2 decimal
 /// places.
-#[derive(Clone, Copy, Debug, Default, DeserializeFromStr)]
+#[derive(Clone, Copy, Default, DeserializeFromStr, Eq, PartialEq)]
 pub struct USD(i32);
+
+impl Debug for USD {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        Display::fmt(self, f)
+    }
+}
+
+impl Display for USD {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let dollars = f64::from(self.0) / 100.0;
+        write!(f, "${:>8}", format!("{dollars:.2}"))
+    }
+}
 
 impl FromStr for USD {
     type Err = anyhow::Error;
 
     fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
-        Ok(Self(s.replace('.', "").parse()?))
+        Ok(Self(s.replace(['.', ','], "").parse()?))
     }
 }
 
@@ -210,10 +223,11 @@ impl AddAssign for USD {
     }
 }
 
-impl Display for USD {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let dollars = f64::from(self.0) / 100.0;
-        write!(f, "${:>8}", format!("{dollars:.2}"))
+impl Mul<i32> for USD {
+    type Output = Self;
+
+    fn mul(self, rhs: i32) -> Self::Output {
+        Self(self.0 * rhs)
     }
 }
 
@@ -245,5 +259,21 @@ mod tests {
         let mut reporter = Report::new();
         reporter.add_group("Foo", "foo").unwrap();
         assert_eq!(reporter.product_group("foo variant 1"), Some("Foo".into()));
+    }
+
+    #[test]
+    fn read_csv_fn_correctly_parses_squarespace_data() {
+        let mut reporter = Report::new();
+        reporter.read_csv("testdata/squarespace.csv").unwrap();
+        assert_eq!(reporter.units, 17, "wrong units");
+        assert_eq!(reporter.revenue, USD::from_str("3,409.15").unwrap());
+    }
+
+    #[test]
+    fn read_csv_fn_correctly_parses_gumroad_data() {
+        let mut reporter = Report::new();
+        reporter.read_csv("testdata/gumroad.csv").unwrap();
+        assert_eq!(reporter.units, 7, "wrong units");
+        assert_eq!(reporter.revenue, USD::default());
     }
 }

@@ -22,7 +22,9 @@ fn main() -> Result<()> {
     if let Some(path) = args.groups {
         report.read_groups(path)?;
     }
-    report.read_csv(&args.csv)?;
+    for csv in args.csv {
+        report.read_csv(csv)?;
+    }
     print!("{report}");
     Ok(())
 }
