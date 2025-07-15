@@ -255,6 +255,12 @@ mod tests {
     }
 
     #[test]
+    fn read_groups_fn_returns_error_for_bad_line_format() {
+        let mut reporter = Report::new();
+        assert!(reporter.read_groups("testdata/groups.bad").is_err());
+    }
+
+    #[test]
     fn add_group_fn_adds_group_to_reporter() {
         let mut reporter = Report::new();
         reporter.add_group("Foo", "foo").unwrap();
