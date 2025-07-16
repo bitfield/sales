@@ -2,6 +2,22 @@
 name = "sales"
 version = "0.1.0"
 edition = "2021"
+authors = ["John Arundel <john@bitfieldconsulting.com>"]
+description = """
+A command-line tool, and library, for reporting and aggregating sales data (for example, from CSV files).
+"""
+keywords = ["sales", "csv"]
+categories = ["command-line-utilities", "finance"]
+license = "MIT OR Apache-2.0"
+readme = "README.md"
+documentation = "https://docs.rs/sales"
+homepage = "https://github.com/bitfield/sales"
+repository = "https://github.com/bitfield/sales"
+exclude = ["/.github/"]
+
+[badges]
+github = { repository = "bitfield/sales", workflow = "CI" }
+maintenance = { status = "actively-developed" }
 
 [profile.release]
 overflow-checks = true
