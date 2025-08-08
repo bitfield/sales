@@ -1,4 +1,4 @@
-use anyhow::{bail, Result};
+use anyhow::{bail, Context, Result};
 use regex::Regex;
 use serde::Deserialize;
 
@@ -20,11 +20,11 @@ struct Group {
 
 /// Holds sales data.
 ///
-/// To create a new, empty `Report`, use [`Self::new`].
+/// To create a new, empty `Report`, use [`Report::new`].
 ///
-/// To add group configuration, use [`Self::add_group`] or [`Self::read_groups`].
+/// To add group configuration, use [`Report::add_group`] or [`Report::read_groups`].
 ///
-/// To add sales data, use [`Self::read_csv`].
+/// To add sales data, use [`Report::read_csv`].
 ///
 /// To get a printable version of the report, use its [`Display`] implementation.
 #[derive(Debug, Default)]
@@ -39,7 +39,7 @@ pub struct Report {
 impl Report {
     /// Creates a new, empty report with no data or group configuration.
     #[must_use]
-    pub fn new() -> Self {
+    pub fn new() -> Report {
         Self::default()
     }
 
@@ -134,9 +134,9 @@ impl Report {
     ///
     /// Returns any errors from opening or parsing a CSV file.
     pub fn read_csv(&mut self, path: impl AsRef<Path>) -> Result<()> {
-        let mut rdr = csv::Reader::from_path(path)?;
+        let mut rdr = csv::Reader::from_path(&path)?;
         for result in rdr.deserialize() {
-            let record: Record = result?;
+            let record: Record = result.with_context(|| format!("{}", path.as_ref().display()))?;
             let display_name = self.product_group(&record.name).unwrap_or(record.name);
             let prod = self.products.entry(display_name.clone()).or_default();
             let units = record.qty;
