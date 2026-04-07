@@ -2,9 +2,10 @@ use serde_with::DeserializeFromStr;
 
 use std::{
     fmt::{Debug, Display},
-    ops::{AddAssign, Mul},
     str::FromStr,
 };
+
+use crate::units::Units;
 
 /// Represents an amount of money in USD currency.
 ///
@@ -12,7 +13,8 @@ use std::{
 /// [`Display`] implementation formats it for display as dollars to 2 decimal
 /// places.
 #[derive(Clone, Copy, Default, DeserializeFromStr, Eq, PartialEq, Ord, PartialOrd)]
-pub struct Usd(i32);
+#[must_use = "Don't leave money on the table"]
+pub struct Usd(usize);
 
 impl Debug for Usd {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -22,8 +24,9 @@ impl Debug for Usd {
 
 impl Display for Usd {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let dollars = f64::from(self.0) / 100.0;
-        write!(f, "{dollars:>12.2}",)
+        let dollars = self.0.strict_div(100); // can't fail unless divisor is zero
+        let cents = self.0.strict_rem(100); // can't fail unless divisor is zero
+        write!(f, "{dollars:>12}.{cents:2}",)
     }
 }
 
@@ -35,16 +38,12 @@ impl FromStr for Usd {
     }
 }
 
-impl AddAssign for Usd {
-    fn add_assign(&mut self, rhs: Self) {
-        self.0 += rhs.0;
+impl Usd {
+    pub fn strict_add(&mut self, rhs: Self) -> Self {
+        Self(self.0.checked_add(rhs.0).expect("overflow"))
     }
-}
 
-impl Mul<i32> for Usd {
-    type Output = Self;
-
-    fn mul(self, rhs: i32) -> Self::Output {
-        Self(self.0 * rhs)
+    pub fn strict_mul(self, rhs: Units) -> Self {
+        Self(self.0.checked_mul(rhs.0).expect("overflow"))
     }
 }
