@@ -2,11 +2,9 @@ use std::fmt::{Debug, Display};
 
 use serde::Deserialize;
 
-/// Represents an amount of money in USD currency.
+/// Represents a number of product units.
 ///
-/// The amount is stored internally as an integer number of cents, but the
-/// [`Display`] implementation formats it for display as dollars to 2 decimal
-/// places.
+/// The amount is stored internally as a `usize`.
 #[derive(Clone, Copy, Debug, Default, Deserialize, Eq, PartialEq, Ord, PartialOrd)]
 #[must_use]
 pub struct Units(pub usize);
